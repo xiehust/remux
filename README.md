@@ -64,6 +64,7 @@ cd android && ./gradlew :core:test assembleDebug lintDebug
 
 ## Docs
 
+- [`docs/USAGE.md`](docs/USAGE.md) — 使用说明 / end-to-end usage guide (run the relay, agent, and app)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components and how they fit together
 - [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — relay wire protocol
 - [`docs/SECURITY.md`](docs/SECURITY.md) — security model & checklist
