@@ -84,14 +84,16 @@ jobs:
             -backend-config="encrypt=true"
 
       - name: Terraform apply
+        # Pass vars via TF_VAR_* env (not -var flags) so the subnet_ids JSON list
+        # isn't mangled by shell quoting; Terraform parses collection-typed
+        # TF_VAR_ values as HCL.
         env:
+          TF_VAR_region: ${{ vars.AWS_REGION }}
+          TF_VAR_vpc_id: ${{ vars.VPC_ID }}
+          TF_VAR_subnet_ids: ${{ vars.SUBNET_IDS }}
+          TF_VAR_relay_image: ${{ vars.ECR_REPO }}:${{ steps.rel.outputs.sha }}
           TF_VAR_relay_token: ${{ secrets.RELAY_TOKEN }}
-        run: |
-          terraform -chdir=infra/terraform apply -auto-approve -input=false \
-            -var "region=${{ vars.AWS_REGION }}" \
-            -var "vpc_id=${{ vars.VPC_ID }}" \
-            -var "subnet_ids=${{ vars.SUBNET_IDS }}" \
-            -var "relay_image=${{ vars.ECR_REPO }}:${{ steps.rel.outputs.sha }}"
+        run: terraform -chdir=infra/terraform apply -auto-approve -input=false
 
       - name: Force a fresh ECS deployment & wait for steady state
         run: |
