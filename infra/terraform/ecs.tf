@@ -26,17 +26,26 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
+
 resource "aws_security_group" "relay" {
-  name        = "${var.name_prefix}-relay-sg"
+  name = "${var.name_prefix}-relay-sg"
+  # NOTE: description is immutable — changing it forces SG replacement, which
+  # fails while the SG is attached to a running task. Keep it stable.
   description = "Allow inbound relay TCP from the NLB and outbound anywhere."
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "relay port"
+    # In-VPC only: the NLB (TLS :443) forwards to the task on this port. The task
+    # has a public IP (needed to pull from ECR in public subnets), so restricting
+    # to the VPC CIDR keeps the plaintext port off the public internet.
+    description = "relay port from within the VPC (NLB)"
     from_port   = var.relay_port
     to_port     = var.relay_port
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [data.aws_vpc.selected.cidr_block]
   }
 
   egress {
@@ -110,5 +119,7 @@ resource "aws_ecs_service" "relay" {
     container_port   = var.relay_port
   }
 
-  depends_on = [aws_lb_listener.relay]
+  # Whichever data-plane listener is active (plaintext 8080 or TLS 443) must exist
+  # before the service registers with the target group.
+  depends_on = [aws_lb_listener.relay, aws_lb_listener.relay_tls]
 }
