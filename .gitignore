@@ -44,3 +44,7 @@ commandlinetools-*.zip
 /lambda
 /relay/relay
 /agent/agent
+
+# Terraform build inputs / local state
+infra/terraform/build/
+infra/terraform/.terraform.lock.hcl.backup

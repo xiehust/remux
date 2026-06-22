@@ -20,6 +20,10 @@ import (
 type ctrlClient interface {
 	ReadMessage() ([]byte, error)
 	WriteMessage([]byte) error
+	// Ping sends a WebSocket ping control frame (keepalive). API Gateway closes
+	// idle WebSocket connections after ~10 minutes, so the agent pings well
+	// inside that window.
+	Ping() error
 	Close() error
 }
 
@@ -102,8 +106,7 @@ func (a *Agent) Run(ctx context.Context) error {
 // connectOnce establishes one control connection, registers, and serves Open
 // requests until the connection drops or ctx is cancelled.
 func (a *Agent) connectOnce(ctx context.Context) error {
-	ctrlURL := joinWS(a.cfg.RelayURL, "/agent/control")
-	conn, err := a.dialControl(ctx, ctrlURL)
+	conn, err := a.dialControl(ctx, a.cfg.controlURL())
 	if err != nil {
 		return err
 	}
@@ -133,7 +136,28 @@ func (a *Agent) connectOnce(ctx context.Context) error {
 		a.log.Error("relay rejected registration", "msg", e.Msg)
 		return &registerError{msg: e.Msg}
 	}
-	a.log.Info("registered with relay", "deviceId", a.cfg.DeviceID, "relay", a.cfg.RelayURL)
+	a.log.Info("registered with relay", "deviceId", a.cfg.DeviceID, "relay", a.cfg.RelayURL, "mode", a.cfg.Mode)
+
+	// Keepalive: ping inside API Gateway's ~10-minute idle window. Stops when
+	// connectOnce returns (the read loop below exits on drop/cancel).
+	stopPing := make(chan struct{})
+	defer close(stopPing)
+	go func() {
+		t := time.NewTicker(5 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-stopPing:
+				return
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if err := conn.Ping(); err != nil {
+					return
+				}
+			}
+		}
+	}()
 
 	// Serve Open requests until the control connection drops.
 	for {
@@ -158,7 +182,7 @@ func (a *Agent) connectOnce(ctx context.Context) error {
 // handleSession opens a data connection to the relay and a TCP connection to
 // the local sshd, then bridges them.
 func (a *Agent) handleSession(ctx context.Context, sessionID string) {
-	dataURL := joinWS(a.cfg.RelayURL, "/data") + "?session=" + url.QueryEscape(sessionID) + "&token=" + url.QueryEscape(a.cfg.Token)
+	dataURL := joinWS(a.cfg.dataBaseURL(), "/data") + "?session=" + url.QueryEscape(sessionID) + "&token=" + url.QueryEscape(a.cfg.Token)
 	ws, err := a.dialData(ctx, dataURL)
 	if err != nil {
 		a.log.Error("failed to open data connection", "sessionId", sessionID, "err", err)
@@ -207,6 +231,11 @@ func (c *wsCtrlClient) WriteMessage(b []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.WriteMessage(websocket.TextMessage, b)
+}
+func (c *wsCtrlClient) Ping() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
 }
 func (c *wsCtrlClient) Close() error { return c.conn.Close() }
 

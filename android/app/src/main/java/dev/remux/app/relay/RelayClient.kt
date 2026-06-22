@@ -30,14 +30,21 @@ interface RelayControlListener {
  * carry the SSH connection.
  */
 class RelayClient(
-    private val relayBaseUrl: String,
+    /** Exact control WebSocket URL. Fargate: `<base>/app/control`. API GW: the
+     *  `wss://…/prod` URL (no path). */
+    private val controlUrl: String,
+    /** Base URL of the data-plane relay; `/data` is appended. Fargate: same host.
+     *  API GW: the NLB-fronted Fargate relay. */
+    private val dataBaseUrl: String,
     private val token: String,
+    /** API Gateway authorizes at `$connect` via the query string. */
+    private val tokenInQuery: Boolean = false,
     private val client: OkHttpClient = OkHttpClient(),
 ) {
     private var control: WebSocket? = null
 
     fun connect(listener: RelayControlListener) {
-        val url = wsUrl("/app/control")
+        val url = if (tokenInQuery) "$controlUrl?token=$token" else controlUrl
         control = client.newWebSocket(
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
@@ -76,8 +83,6 @@ class RelayClient(
         control = null
     }
 
-    internal fun wsUrl(path: String): String = relayBaseUrl.trimEnd('/') + path
-
     internal fun dataUrl(sessionId: String): String =
-        wsUrl("/data") + "?session=" + sessionId + "&token=" + token
+        dataBaseUrl.trimEnd('/') + "/data?session=" + sessionId + "&token=" + token
 }

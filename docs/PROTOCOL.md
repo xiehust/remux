@@ -74,6 +74,24 @@ close; data: immediate close). Production hardening (v0.2): per-device one-time
 registration tokens and mTLS on the relay↔agent leg. The relay never sees SSH
 credentials — those are exchanged end-to-end inside the tunneled SSH session.
 
+## Control-plane modes
+
+The same control messages run over either of two control-plane transports
+(`-mode` on the agent; `RelayMode` in the app). The **data plane is identical in
+both** — raw bytes over `/data` on the Fargate relay — because API Gateway
+WebSocket cannot efficiently carry a high-throughput SSH stream (every frame
+would round-trip through Lambda, with a 128 KB frame limit and per-message cost).
+
+| Mode | Control plane | Data plane |
+|------|---------------|------------|
+| `relay` (default, self-hosted) | the Go relay's `/agent/control` & `/app/control` paths | `/data` on the same relay |
+| `apigw` (AWS deployment) | **API Gateway WebSocket + Lambda + DynamoDB** — clients connect directly to `wss://…/prod` (token in the `$connect` query string); Lambda handles register/auth/list and routes `open` to the target device's connection via the DynamoDB `by-device` GSI + `PostToConnection` | `/data` on the **NLB-fronted Fargate relay** (`data-url`) |
+
+In `apigw` mode the agent connects to the API Gateway URL for control and dials
+the separate NLB data URL on `open`; the app does the same. The agent pings
+inside API Gateway's ~10-minute idle window to stay registered. See
+`docs/ARCHITECTURE.md` and `infra/`.
+
 ## Heartbeat & reconnect
 
 - **Heartbeat:** WebSocket ping/pong control frames. The relay pings connected

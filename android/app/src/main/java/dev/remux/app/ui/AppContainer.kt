@@ -23,6 +23,39 @@ class AppContainer(context: Context) {
     }
 
     /** Relay endpoint settings (for via-relay connections). MVP: in-memory defaults. */
+    var relayMode: RelayMode = RelayMode.FARGATE
+
+    /**
+     * FARGATE: the self-hosted relay base (e.g. `ws://relay:8080`).
+     * APIGW: the API Gateway WebSocket URL (e.g. `wss://abc.execute-api.us-east-2.amazonaws.com/prod`).
+     */
     var relayBaseUrl: String = ""
+
+    /** APIGW only: base URL of the NLB-fronted Fargate data relay (e.g. `ws://nlb:8080`). */
+    var relayDataUrl: String = ""
     var relayToken: String = ""
+
+    /** Builds a [dev.remux.app.relay.RelayClient] wired for the current mode. */
+    fun newRelayClient(): dev.remux.app.relay.RelayClient = when (relayMode) {
+        RelayMode.FARGATE -> dev.remux.app.relay.RelayClient(
+            controlUrl = relayBaseUrl.trimEnd('/') + "/app/control",
+            dataBaseUrl = relayBaseUrl,
+            token = relayToken,
+        )
+        RelayMode.APIGW -> dev.remux.app.relay.RelayClient(
+            controlUrl = relayBaseUrl,
+            dataBaseUrl = relayDataUrl.ifBlank { relayBaseUrl },
+            token = relayToken,
+            tokenInQuery = true,
+        )
+    }
+}
+
+/** How the app reaches the relay control plane. */
+enum class RelayMode {
+    /** Self-hosted Go relay, path-based (`/app/control`, `/data` on one host). */
+    FARGATE,
+
+    /** API Gateway WebSocket + Lambda control plane; data over the NLB-fronted relay. */
+    APIGW,
 }

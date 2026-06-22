@@ -19,9 +19,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.remux.app.relay.RelayClient
 import dev.remux.app.relay.RelayControlListener
 import dev.remux.app.ui.AppContainer
+import dev.remux.app.ui.RelayMode
 import dev.remux.core.relay.DeviceInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,7 +33,9 @@ fun DevicePickerScreen(
 ) {
     val scope = rememberCoroutineScope()
     var relayUrl by remember { mutableStateOf(container.relayBaseUrl) }
+    var dataUrl by remember { mutableStateOf(container.relayDataUrl) }
     var token by remember { mutableStateOf(container.relayToken) }
+    var apigw by remember { mutableStateOf(container.relayMode == RelayMode.APIGW) }
     var devices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var status by remember { mutableStateOf("") }
 
@@ -42,14 +44,27 @@ fun DevicePickerScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Pick a relay device", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(relayUrl, { relayUrl = it }, label = { Text("Relay URL (wss://…)") }, modifier = Modifier.fillMaxWidth())
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.FilterChip(!apigw, { apigw = false }, label = { Text("Self-hosted") })
+            androidx.compose.material3.FilterChip(apigw, { apigw = true }, label = { Text("API Gateway") })
+        }
+        OutlinedTextField(
+            relayUrl, { relayUrl = it },
+            label = { Text(if (apigw) "API Gateway URL (wss://…/prod)" else "Relay URL (ws(s)://…)") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (apigw) {
+            OutlinedTextField(dataUrl, { dataUrl = it }, label = { Text("Data relay URL (NLB, ws://…:8080)") }, modifier = Modifier.fillMaxWidth())
+        }
         OutlinedTextField(token, { token = it }, label = { Text("Relay token") }, modifier = Modifier.fillMaxWidth())
         Button(
             onClick = {
                 container.relayBaseUrl = relayUrl
+                container.relayDataUrl = dataUrl
                 container.relayToken = token
+                container.relayMode = if (apigw) RelayMode.APIGW else RelayMode.FARGATE
                 status = "Connecting…"
-                val client = RelayClient(relayUrl, token)
+                val client = container.newRelayClient()
                 client.connect(object : RelayControlListener {
                     override fun onAuthenticated() = client.requestDeviceList()
                     override fun onDevices(list: List<DeviceInfo>) {

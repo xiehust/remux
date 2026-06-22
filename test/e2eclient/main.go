@@ -33,17 +33,47 @@ func main() {
 	user := flag.String("user", "", "ssh user")
 	marker := flag.String("marker", "REMUX_AI_DONE", "expected tmux marker")
 	expectReject := flag.Bool("expect-reject", false, "expect the relay to reject auth")
+	mode := flag.String("mode", "relay", "control mode: relay (path-based) | apigw (API Gateway WSS)")
+	dataURL := flag.String("data-url", "", "data-plane relay base URL (apigw mode; defaults to -relay)")
 	flag.Parse()
 
-	if err := run(*relay, *token, *device, *keyPath, *user, *marker, *expectReject); err != nil {
+	cfg := clientConfig{
+		relay: *relay, token: *token, device: *device, keyPath: *keyPath,
+		user: *user, marker: *marker, expectReject: *expectReject, mode: *mode, dataURL: *dataURL,
+	}
+	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "E2E_APP_FAIL:", err)
 		os.Exit(1)
 	}
 }
 
-func run(relay, token, device, keyPath, user, marker string, expectReject bool) error {
+type clientConfig struct {
+	relay, token, device, keyPath, user, marker, mode, dataURL string
+	expectReject                                               bool
+}
+
+// controlURL returns the WebSocket URL for the control plane.
+func (c clientConfig) controlURL() string {
+	if c.mode == "apigw" {
+		return c.relay + "?token=" + url.QueryEscape(c.token) // API GW authorizes at $connect
+	}
+	return strings.TrimRight(c.relay, "/") + "/app/control"
+}
+
+// dataURLFor returns the /data WebSocket URL for a session.
+func (c clientConfig) dataURLFor(sessionID string) string {
+	base := c.relay
+	if c.dataURL != "" {
+		base = c.dataURL
+	}
+	return strings.TrimRight(base, "/") + "/data?session=" + url.QueryEscape(sessionID) + "&token=" + url.QueryEscape(c.token)
+}
+
+func run(cfg clientConfig) error {
+	token, device, keyPath, user, marker, expectReject := cfg.token, cfg.device, cfg.keyPath, cfg.user, cfg.marker, cfg.expectReject
+
 	// 1. Control connection + auth.
-	ctrl, _, err := websocket.DefaultDialer.Dial(strings.TrimRight(relay, "/")+"/app/control", nil)
+	ctrl, _, err := websocket.DefaultDialer.Dial(cfg.controlURL(), nil)
 	if err != nil {
 		return fmt.Errorf("dial control: %w", err)
 	}
@@ -107,8 +137,7 @@ func run(relay, token, device, keyPath, user, marker string, expectReject bool) 
 	fmt.Printf("E2E_APP: session opened %s\n", opened.SessionID)
 
 	// 4. Dial the data tunnel.
-	dataURL := strings.TrimRight(relay, "/") + "/data?session=" + url.QueryEscape(opened.SessionID) + "&token=" + url.QueryEscape(token)
-	dataWS, _, err := websocket.DefaultDialer.Dial(dataURL, nil)
+	dataWS, _, err := websocket.DefaultDialer.Dial(cfg.dataURLFor(opened.SessionID), nil)
 	if err != nil {
 		return fmt.Errorf("dial data: %w", err)
 	}

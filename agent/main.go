@@ -23,6 +23,8 @@ func main() {
 	deviceID := flag.String("device-id", "", "device id (overrides config)")
 	token := flag.String("token", "", "relay token (overrides config)")
 	localSSH := flag.String("local-ssh", "", "local sshd address (overrides config; default 127.0.0.1:22)")
+	mode := flag.String("mode", "", "control-plane mode: relay (default) | apigw (API Gateway WSS control + NLB data)")
+	dataURL := flag.String("data-url", "", "data-plane relay base URL (apigw mode; defaults to -relay)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -54,6 +56,12 @@ func main() {
 	}
 	if *localSSH != "" {
 		cfg.LocalSSH = *localSSH
+	}
+	if *mode != "" {
+		cfg.Mode = *mode
+	}
+	if *dataURL != "" {
+		cfg.DataURL = *dataURL
 	}
 	cfg.applyDefaults()
 

@@ -89,7 +89,7 @@ class TerminalController(
     }
 
     private suspend fun openRelaySession(deviceId: String): String {
-        val r = RelayClient(container.relayBaseUrl, container.relayToken)
+        val r = container.newRelayClient()
         relay = r
         val opened = CompletableDeferred<String>()
         r.connect(object : RelayControlListener {

@@ -43,10 +43,21 @@ loopback socket bridged to the relay `/data` WebSocket, and SSHJ connects to
 `127.0.0.1:<localPort>` — so the relay sees only encrypted bytes.
 
 ### `infra/` — AWS deployment (Terraform + Go Lambda)
-Deploy-ready (not auto-applied) production topology mirroring the PRD: API
-Gateway WebSocket API + Lambda (connection lifecycle/routing) + DynamoDB
-registry + ECS Fargate (containerized relay) + NLB (agent ingress). See
-`infra/README.md`.
+Production topology mirroring the PRD: API Gateway WebSocket API + Lambda
+(connection lifecycle/routing) + DynamoDB registry + ECS Fargate (containerized
+relay) + NLB (agent ingress). See `infra/README.md`.
+
+**Hybrid control/data split (`apigw` mode).** Because API Gateway WebSocket
+can't efficiently relay a high-throughput SSH byte stream, the deployed topology
+splits the planes: the **control plane** (auth / list / open) runs over API
+Gateway + Lambda + DynamoDB, while the **data plane** (the SSH bytes) runs over
+the **NLB-fronted Fargate relay's `/data`** — the same content-agnostic byte
+pipe. The Lambda routes an app's `open` to the target device's API Gateway
+connection (via the DynamoDB `by-device` GSI + `PostToConnection`); both ends
+then meet on the Fargate relay by session id. The agent (`-mode apigw -relay
+wss://…/prod -data-url ws://<nlb>:8080`) and app (`RelayMode.APIGW`) support this;
+the default `relay` mode keeps everything on the self-hosted relay. See
+`docs/PROTOCOL.md` → *Control-plane modes*.
 
 ## Why this shape
 - **Firewall piercing without inbound ports:** both ends dial out to the relay.
