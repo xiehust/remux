@@ -29,6 +29,7 @@ fun RemuxApp(container: AppContainer) {
             onAddHost = { route = Route.HostEdit(null) },
             onConnect = { host -> route = Route.Terminal(host.id) },
             onEditHost = { host -> route = Route.HostEdit(host.id) },
+            onOpenRelay = { route = Route.DevicePicker },
         )
 
         is Route.HostEdit -> HostEditScreen(
@@ -39,6 +40,7 @@ fun RemuxApp(container: AppContainer) {
 
         is Route.DevicePicker -> DevicePickerScreen(
             container = container,
+            onDone = { route = Route.HostList },
             onPicked = { route = Route.HostList },
         )
 

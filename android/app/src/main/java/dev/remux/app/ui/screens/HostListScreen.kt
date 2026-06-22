@@ -34,6 +34,7 @@ fun HostListScreen(
     onAddHost: () -> Unit,
     onConnect: (HostEntity) -> Unit,
     onEditHost: (HostEntity) -> Unit,
+    onOpenRelay: () -> Unit,
 ) {
     val hosts by container.hostDao.observeAll().collectAsState(initial = emptyList())
 
@@ -45,12 +46,20 @@ fun HostListScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Text(
-                text = "Remux",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(16.dp),
-            )
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Remux",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                androidx.compose.material3.TextButton(onClick = onOpenRelay) {
+                    Text("Relay")
+                }
+            }
             if (hosts.isEmpty()) {
                 EmptyHosts(onAddHost)
             } else {

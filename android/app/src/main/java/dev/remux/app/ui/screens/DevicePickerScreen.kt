@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DevicePickerScreen(
     container: AppContainer,
+    onDone: () -> Unit,
     onPicked: (DeviceInfo) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -39,11 +40,25 @@ fun DevicePickerScreen(
     var devices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var status by remember { mutableStateOf("") }
 
+    fun persist() {
+        container.relayBaseUrl = relayUrl
+        container.relayDataUrl = dataUrl
+        container.relayToken = token
+        container.relayMode = if (apigw) RelayMode.APIGW else RelayMode.FARGATE
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Pick a relay device", style = MaterialTheme.typography.headlineSmall)
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text("Relay settings", style = MaterialTheme.typography.headlineSmall)
+            androidx.compose.material3.TextButton(onClick = { persist(); onDone() }) { Text("Save & back") }
+        }
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.material3.FilterChip(!apigw, { apigw = false }, label = { Text("Self-hosted") })
             androidx.compose.material3.FilterChip(apigw, { apigw = true }, label = { Text("API Gateway") })
@@ -59,10 +74,7 @@ fun DevicePickerScreen(
         OutlinedTextField(token, { token = it }, label = { Text("Relay token") }, modifier = Modifier.fillMaxWidth())
         Button(
             onClick = {
-                container.relayBaseUrl = relayUrl
-                container.relayDataUrl = dataUrl
-                container.relayToken = token
-                container.relayMode = if (apigw) RelayMode.APIGW else RelayMode.FARGATE
+                persist()
                 status = "Connecting…"
                 val client = container.newRelayClient()
                 client.connect(object : RelayControlListener {
