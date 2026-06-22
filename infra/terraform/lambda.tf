@@ -60,7 +60,11 @@ resource "aws_lambda_function" "ws" {
   handler       = "bootstrap"
   architectures = ["arm64"]
   filename      = var.lambda_zip
-  timeout       = 15
+  # Lets `terraform apply` detect Lambda code changes (rebuilt zip) and redeploy.
+  # Guarded with fileexists so `terraform validate` (CI, no built zip) doesn't try
+  # to read a missing file.
+  source_code_hash = fileexists(var.lambda_zip) ? filebase64sha256(var.lambda_zip) : null
+  timeout          = 15
 
   environment {
     variables = {

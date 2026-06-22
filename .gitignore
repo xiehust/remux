@@ -26,6 +26,9 @@ android/captures/
 *.tfstate.*
 *.tfplan
 crash.log
+# Account-specific var files (vpc/subnets/image). Examples (*.tfvars.example) stay tracked.
+*.tfvars
+*.auto.tfvars
 
 # SDK / tooling (kept local; not committed)
 /android-sdk/

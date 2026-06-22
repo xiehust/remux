@@ -48,16 +48,63 @@ mkdir -p ../terraform/build && zip ../terraform/build/lambda.zip bootstrap
 
 ## Deploy
 
+Copy `terraform.tfvars.example` → `terraform.tfvars` (gitignored) and fill in your
+`vpc_id` / `subnet_ids` / `relay_image`, then:
+
 ```bash
-export TF_VAR_relay_token='<a strong shared token>'
-terraform -chdir=infra/terraform apply \
-  -var 'vpc_id=vpc-xxxx' \
-  -var 'subnet_ids=["subnet-a","subnet-b"]' \
-  -var 'relay_image=<acct>.dkr.ecr.<region>.amazonaws.com/remux-relay:latest'
+export TF_VAR_relay_token='<a strong shared token>'   # never put the token in a file
+terraform -chdir=infra/terraform apply
 ```
 
+> ⚠ Always export `TF_VAR_relay_token`. It has an empty default, so a plain
+> `apply` without it would reset the relay/Lambda token to "" (auth disabled) and
+> break already-connected agents/apps.
+
 Outputs: `websocket_url` (app connects here), `nlb_dns_name` (agent dials here),
-`registry_table`, `lambda_function`, `ecs_cluster`.
+`registry_table`, `lambda_function`, `ecs_cluster`. State is local
+(`terraform.tfstate`, gitignored) — updates must run from the same machine, or
+migrate state to S3 first.
+
+## Updating an existing deployment
+
+Pick the path for what you changed (all from the repo root, `export AWS_REGION=us-east-2`):
+
+**Relay code (`relay/`, `proto/`)** — rebuild the image and roll ECS. Because the
+default `relay_image` uses the `:latest` tag, `terraform apply` sees no diff, so
+force a new deployment:
+
+```bash
+REG=<acct>.dkr.ecr.us-east-2.amazonaws.com
+docker build -f relay/Dockerfile -t remux-relay .
+aws ecr get-login-password | docker login --username AWS --password-stdin "$REG"
+docker tag remux-relay:latest "$REG/remux-relay:latest" && docker push "$REG/remux-relay:latest"
+aws ecs update-service --cluster remux-cluster --service remux-relay --force-new-deployment
+aws ecs wait services-stable --cluster remux-cluster --services remux-relay
+```
+
+Prefer an **immutable tag** (e.g. a git sha): push `…/remux-relay:<sha>`, set it in
+`terraform.tfvars`, and `terraform apply` — then changes are visible and revertible.
+
+**Lambda code (`infra/lambda/`)** — rebuild the zip; `source_code_hash` lets
+`terraform apply` detect and redeploy it:
+
+```bash
+( cd infra/lambda && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /tmp/bootstrap . )
+( cd /tmp && zip -j "$OLDPWD/infra/terraform/build/lambda.zip" bootstrap )
+export TF_VAR_relay_token='<token>'
+terraform -chdir=infra/terraform apply        # or: aws lambda update-function-code --function-name remux-ws --zip-file fileb://infra/terraform/build/lambda.zip
+```
+
+**Topology / variables (`*.tf`, CPU/memory, routes, …)** —
+
+```bash
+export TF_VAR_relay_token='<token>'
+terraform -chdir=infra/terraform plan         # review, then `apply`
+```
+
+**Rollback:** relay → `aws ecs update-service … --task-definition remux-relay:<old-revision>`
+or re-push the old image tag; Lambda → `aws lambda update-function-code … --zip-file fileb://<old.zip>`.
+Verify with `curl http://<nlb>:8080/healthz` (→ `ok`) and `aws ecs wait services-stable …`.
 
 ## Cost estimate (low traffic, < 10 devices)
 

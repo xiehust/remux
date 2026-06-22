@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (gitignored) and fill in your account-specific values,
+# so `terraform apply` doesn't need long -var flags.
+#
+# The relay token is intentionally NOT here — pass it via the environment so it
+# never lands in a file:  export TF_VAR_relay_token='<strong token>'
+
+region      = "us-east-2"
+name_prefix = "remux"
+
+# VPC + >=2 public subnets (different AZs) for the NLB and Fargate tasks.
+vpc_id     = "vpc-xxxxxxxxxxxxxxxxx"
+subnet_ids = ["subnet-aaaaaaaa", "subnet-bbbbbbbb", "subnet-cccccccc"]
+
+# ECR image URI for the relay (push from relay/Dockerfile). Prefer an immutable
+# tag (e.g. a git sha) over :latest so `terraform apply` can detect image changes.
+relay_image = "ACCOUNT.dkr.ecr.us-east-2.amazonaws.com/remux-relay:latest"
