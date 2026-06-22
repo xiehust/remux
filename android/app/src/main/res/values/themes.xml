@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window chrome shown before Compose loads. The app is dark-first, so we
+         base it on the dark platform Material theme (no extra dependency) and
+         paint the window black. All real UI is drawn by Compose Material3. -->
+    <style name="Theme.Remux" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+</resources>

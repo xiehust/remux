@@ -1,0 +1,10 @@
+.git
+.supergoal
+android
+infra
+test
+docs
+scripts
+*.md
+go.work
+go.work.sum

@@ -1,0 +1,7 @@
+go 1.25.0
+
+use .
+
+// infra/lambda is a separate module to keep AWS SDK dependencies out of the
+// relay/agent/app build.
+use ./infra/lambda

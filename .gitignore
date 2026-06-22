@@ -1,0 +1,46 @@
+# Go
+/relay/relay
+/agent/agent
+*.exe
+*.test
+*.out
+bin/
+dist/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+.kotlin/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# SDK / tooling (kept local; not committed)
+/android-sdk/
+gradle-*-bin.zip
+commandlinetools-*.zip
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# Supergoal build-orchestration artifacts (planning meta, not product code)
+.supergoal/
+
+# Stray Go build output (go build of a main pkg writes to cwd)
+/lambda
+/relay/relay
+/agent/agent
