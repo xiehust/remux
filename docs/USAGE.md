@@ -101,6 +101,8 @@ App 里 relay 端点配置在 **Relay 设置页**（主机列表右上角的 **R
 
 > 为什么是「控制面 API GW + 数据面 NLB」的混合方案：API Gateway WebSocket 无法高效承载 SSH 字节流（每帧都要过一次 Lambda，且有 128KB 帧上限）。详见 [`PROTOCOL.md`](PROTOCOL.md) 的 *Control-plane modes*。
 
+> **数据面 TLS（`wss://`）**：默认数据面是明文 `ws://<nlb>:8080`（隧道内 SSH 已端到端加密）。若给 NLB 配了自定义域名 + ACM 证书（见 [`../infra/README.md`](../infra/README.md) 的 *TLS / custom domain*），数据面改用 `wss://relay.<你的域名>`：agent 用 `-data-url wss://relay.<域名>`，app 的 *Data relay URL* 填同样的值。
+
 ### 连接到一个已经部署好的实例（分步）
 
 如果 AWS 上已经 `terraform apply` 过，按下面四步即可接入。**请用下面的命令从你自己的环境读取真实地址与 token，不要把它们写进任何文件或公开分享**（token 能直接连到你的主机）。

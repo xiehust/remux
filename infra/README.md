@@ -146,6 +146,29 @@ Actions → **Deploy infra (AWS)** → *Run workflow* → type `deploy` to confi
 approve the `production` deployment when prompted. The job applies, forces a fresh
 ECS rollout, waits for steady state, and prints the outputs.
 
+## TLS / custom domain (`wss://`)
+
+By default the data plane is plaintext `ws://<nlb>:8080` (the SSH session inside
+is end-to-end encrypted regardless). To serve `wss://` with a publicly-trusted
+cert, set `domain_name` (a domain you control — ACM can't issue for the AWS-owned
+`*.elb.amazonaws.com` name) and `relay.tf` provisions a Route53 zone, an ACM
+cert, an NLB `:443` TLS listener, and `relay.<domain>` → NLB.
+
+Two-phase because ACM DNS validation needs the registrar delegated to Route53 first:
+
+```bash
+# 1. Create just the hosted zone, then point the registrar's nameservers at it.
+terraform -chdir=infra/terraform apply -target=aws_route53_zone.primary
+terraform -chdir=infra/terraform output route53_nameservers   # set these at your registrar
+# 2. After NS delegation is live (dig NS <domain> shows the awsdns servers), apply the rest:
+terraform -chdir=infra/terraform apply
+terraform -chdir=infra/terraform output relay_wss_url          # wss://relay.<domain>
+```
+
+Then use `wss://relay.<domain>` as the data URL in the agent (`-data-url`) and the
+app's Relay settings. (`ssl_policy` is TLS 1.2/1.3; the relay still speaks plaintext
+behind the NLB, which terminates TLS.)
+
 ## Cost estimate (low traffic, < 10 devices)
 
 | Item                                   | ~Monthly |

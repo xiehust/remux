@@ -47,6 +47,18 @@ variable "lambda_zip" {
   default     = "build/lambda.zip"
 }
 
+variable "domain_name" {
+  description = "Apex domain managed in Route53 for the relay's TLS endpoint (e.g. remuxapp.site). Empty disables the TLS/HTTPS path (plaintext ws:// only)."
+  type        = string
+  default     = ""
+}
+
+variable "relay_subdomain" {
+  description = "Subdomain under domain_name for the relay's wss endpoint."
+  type        = string
+  default     = "relay"
+}
+
 variable "fargate_cpu" {
   description = "Fargate task CPU units (256 = 0.25 vCPU)."
   type        = string
