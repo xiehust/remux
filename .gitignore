@@ -51,3 +51,7 @@ commandlinetools-*.zip
 # Terraform build inputs / local state
 infra/terraform/build/
 infra/terraform/.terraform.lock.hcl.backup
+
+# Terraform backend partial-config (contains account-specific bucket name)
+backend.hcl
+**/backend.hcl

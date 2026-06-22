@@ -1,0 +1,102 @@
+name: Deploy infra (AWS)
+
+# Manual only. Runs in the `production` environment, which gates on a required
+# reviewer (approval) AND scopes the OIDC trust — the deploy IAM role only trusts
+# `repo:xiehust/remux:environment:production`, so nothing else can assume it.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm a real AWS apply'
+        required: true
+        default: ''
+
+concurrency:
+  group: deploy-infra
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  deploy:
+    name: terraform apply (us-east-2)
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Guard — require explicit confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "Confirmation input was not 'deploy' — aborting."; exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve release tag
+        id: rel
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push relay image (linux/arm64, immutable git-sha tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: relay/Dockerfile
+          platforms: linux/arm64
+          push: true
+          build-args: GIT_SHA=${{ steps.rel.outputs.sha }}
+          tags: ${{ vars.ECR_REPO }}:${{ steps.rel.outputs.sha }}
+
+      - name: Build Lambda bootstrap zip (linux/arm64)
+        run: |
+          ( cd infra/lambda && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /tmp/bootstrap . )
+          mkdir -p infra/terraform/build
+          ( cd /tmp && zip -j "$GITHUB_WORKSPACE/infra/terraform/build/lambda.zip" bootstrap )
+
+      - name: Terraform init (S3 backend)
+        run: |
+          terraform -chdir=infra/terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=remux/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=remux-tf-lock" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform apply
+        env:
+          TF_VAR_relay_token: ${{ secrets.RELAY_TOKEN }}
+        run: |
+          terraform -chdir=infra/terraform apply -auto-approve -input=false \
+            -var "region=${{ vars.AWS_REGION }}" \
+            -var "vpc_id=${{ vars.VPC_ID }}" \
+            -var "subnet_ids=${{ vars.SUBNET_IDS }}" \
+            -var "relay_image=${{ vars.ECR_REPO }}:${{ steps.rel.outputs.sha }}"
+
+      - name: Force a fresh ECS deployment & wait for steady state
+        run: |
+          aws ecs update-service --cluster remux-cluster --service remux-relay --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster remux-cluster --services remux-relay
+
+      - name: Outputs
+        run: terraform -chdir=infra/terraform output

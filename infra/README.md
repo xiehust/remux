@@ -106,6 +106,46 @@ terraform -chdir=infra/terraform plan         # review, then `apply`
 or re-push the old image tag; Lambda → `aws lambda update-function-code … --zip-file fileb://<old.zip>`.
 Verify with `curl http://<nlb>:8080/healthz` (→ `ok`) and `aws ecs wait services-stable …`.
 
+## CI/CD: deploy from GitHub Actions
+
+`.github/workflows/deploy.yml` deploys this infra from CI. It is **manual only**
+(`workflow_dispatch`), runs in the `production` GitHub Environment (required-reviewer
+approval), and authenticates to AWS via **GitHub OIDC** — no long-lived keys. It
+builds + pushes the relay image (immutable git-sha tag), builds the Lambda zip,
+and runs `terraform apply` against the S3 remote state.
+
+### Prerequisites (one-time, account side)
+
+- Remote state: S3 bucket + DynamoDB lock table (see *Remote state* above).
+- OIDC: a GitHub OIDC provider (`token.actions.githubusercontent.com`) and an IAM
+  role whose trust is scoped to `repo:<owner>/<repo>:environment:production`.
+  (The role has broad permissions for a workshop — tighten for real production;
+  the tight trust + manual approval bound who can assume it.)
+
+### One-time GitHub setup (repo → Settings)
+
+**Secrets and variables → Actions → Variables:**
+
+| Variable | Value |
+|---|---|
+| `AWS_ROLE_ARN` | the OIDC deploy role ARN (`arn:aws:iam::<acct>:role/remux-github-deploy`) |
+| `AWS_REGION` | `us-east-2` |
+| `ECR_REPO` | `<acct>.dkr.ecr.us-east-2.amazonaws.com/remux-relay` |
+| `VPC_ID` | your VPC id |
+| `SUBNET_IDS` | JSON list, e.g. `["subnet-a","subnet-b","subnet-c"]` |
+| `TF_STATE_BUCKET` | the S3 state bucket name |
+
+**Secrets and variables → Actions → Secrets:** `RELAY_TOKEN` = the relay bearer token.
+
+**Environments → New environment `production`:** add yourself as a **Required
+reviewer** (this is the approval gate the deploy job pauses on).
+
+### Run it
+
+Actions → **Deploy infra (AWS)** → *Run workflow* → type `deploy` to confirm →
+approve the `production` deployment when prompted. The job applies, forces a fresh
+ECS rollout, waits for steady state, and prints the outputs.
+
 ## Cost estimate (low traffic, < 10 devices)
 
 | Item                                   | ~Monthly |

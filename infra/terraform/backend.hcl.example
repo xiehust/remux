@@ -1,0 +1,8 @@
+# Copy to backend.hcl (gitignored) and fill in, then:
+#   terraform init -backend-config=backend.hcl
+# CI passes the same values via -backend-config flags from GitHub Actions variables.
+bucket         = "remux-tfstate-<ACCOUNT_ID>-us-east-2"
+key            = "remux/terraform.tfstate"
+region         = "us-east-2"
+dynamodb_table = "remux-tf-lock"
+encrypt        = true
