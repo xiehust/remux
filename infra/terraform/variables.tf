@@ -48,7 +48,7 @@ variable "lambda_zip" {
 }
 
 variable "domain_name" {
-  description = "Apex domain managed in Route53 for the relay's TLS endpoint (e.g. remuxapp.site). Empty disables the TLS/HTTPS path (plaintext ws:// only)."
+  description = "Apex domain managed in Route53 for the relay's TLS endpoint (e.g. example.com). Empty disables the TLS/HTTPS path (plaintext ws:// only)."
   type        = string
   default     = ""
 }
