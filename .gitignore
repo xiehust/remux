@@ -41,7 +41,7 @@ commandlinetools-*.zip
 *~
 
 # Supergoal build-orchestration artifacts (planning meta, not product code)
-.supergoal/
+#.supergoal/
 
 # Stray Go build output (go build of a main pkg writes to cwd)
 /lambda
