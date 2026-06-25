@@ -34,7 +34,12 @@ class TunnelBridge(
     /** Opens the loopback listener and the data WebSocket; returns the local
      *  port SSHJ should connect to. */
     fun start(): Int {
-        val srv = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+        // Bind explicitly to the IPv4 loopback. SSHJ dials "127.0.0.1", but
+        // InetAddress.getLoopbackAddress() returns ::1 (IPv6) on some devices /
+        // emulators, which binds the listener to ::1 only — the IPv4 dial then
+        // fails with ECONNREFUSED. Pinning IPv4 keeps bind and dial consistent.
+        val loopback = InetAddress.getByName("127.0.0.1")
+        val srv = ServerSocket(0, 1, loopback)
         server = srv
         val localPort = srv.localPort
 

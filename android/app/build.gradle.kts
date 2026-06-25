@@ -67,6 +67,10 @@ dependencies {
 
     // Networking / SSH / serialization
     implementation(libs.sshj)
+    // Full BouncyCastle provider: SSHJ needs X25519 (curve25519-sha256 KEX),
+    // which Android's built-in "BC" provider lacks. Pulled in transitively by
+    // SSHJ at runtime, but declared explicitly so it's on the compile classpath.
+    implementation(libs.bouncycastle.prov)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)

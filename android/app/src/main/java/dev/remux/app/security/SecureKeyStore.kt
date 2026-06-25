@@ -42,10 +42,25 @@ class SecureKeyStore(context: Context) {
     fun listAliases(): Set<String> =
         prefs.all.keys.filter { it.startsWith(KEY_PREFIX) }.map { it.removePrefix(KEY_PREFIX) }.toSet()
 
+    /**
+     * Stores an arbitrary secret string (e.g. the relay bearer token) under
+     * [name], encrypted at rest — same AES-256 backing as private keys. Kept
+     * separate from key aliases by a distinct prefix.
+     */
+    fun putSecret(name: String, value: String) {
+        prefs.edit().putString(secretFor(name), value).apply()
+    }
+
+    /** Returns the decrypted secret for [name], or null. */
+    fun getSecret(name: String): String? = prefs.getString(secretFor(name), null)
+
     private fun keyFor(alias: String) = KEY_PREFIX + alias
+
+    private fun secretFor(name: String) = SECRET_PREFIX + name
 
     companion object {
         private const val PREFS_NAME = "remux_secure_keys"
         private const val KEY_PREFIX = "key_"
+        private const val SECRET_PREFIX = "secret_"
     }
 }

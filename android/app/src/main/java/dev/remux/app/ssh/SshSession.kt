@@ -4,9 +4,11 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.PublicKey
+import java.security.Security
 import java.util.concurrent.TimeUnit
 
 /** How the user authenticates to a host. */
@@ -31,6 +33,20 @@ class SshSession(
 ) {
     private var session: Session? = null
     private var shell: Session.Shell? = null
+
+    private companion object {
+        init {
+            // Android pre-registers a stripped-down BouncyCastle under the name
+            // "BC" that lacks an X25519 KeyPairGenerator — so SSHJ's default
+            // curve25519-sha256 key exchange fails with
+            // "no such algorithm: X25519 for provider BC". SSHJ bundles the full
+            // org.bouncycastle provider on the classpath; swap it in under "BC".
+            // (insertProviderAt is rejected if a "BC" provider already exists, so
+            // the existing one must be removed first.)
+            Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+            Security.insertProviderAt(BouncyCastleProvider(), 1)
+        }
+    }
 
     val isConnected: Boolean get() = client.isConnected
 
